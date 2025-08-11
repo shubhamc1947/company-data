@@ -1,6 +1,5 @@
-Sure! Here's your README in markdown format:
 
-```markdown
+
 # Financial Data API Aggregator
 
 A robust and scalable Flask-based API that provides standardized financial data for public companies from various countries. It acts as a middleware, fetching data from external financial APIs, processing it, and serving it through a clean, unified interface with a powerful two-layer database caching system to ensure high performance and reliability.
