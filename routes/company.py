@@ -13,6 +13,7 @@ def get_company_metrics(country, company_name):
         current_app.logger.error(str(e))
         return jsonify({'error': str(e)}), 404
 
+    # Search for the company to get the correct symbol
     search_results = api_service.search_company(company_name)
     if not search_results:
         return jsonify({
@@ -20,34 +21,20 @@ def get_company_metrics(country, company_name):
             'suggestion': 'Try: Apple, Microsoft, Tesla, Amazon, Google, Meta, Netflix, Nike'
         }), 404
 
+    # Find the best match and its symbol
     best_match = next((c for c in search_results if company_name.lower() in c.get('name', '').lower()), search_results[0])
     symbol = best_match.get('symbol')
     if not symbol:
-        return jsonify({'error': 'Stock symbol not available'}), 400
+        return jsonify({'error': 'Stock symbol not available for the best match.'}), 400
 
-    company_data = api_service.get_company_data(symbol)
-    if not company_data:
-        return jsonify({'error': 'Failed to fetch company data'}), 500
+    # The service layer now handles caching internally
+    processed_data = api_service.get_company_data(symbol)
+    if not processed_data:
+        return jsonify({'error': f'Failed to fetch or process data for symbol {symbol}'}), 500
 
-    profile = company_data['profile']
-    financials = company_data['financials']
-    balance_sheets = company_data['balance_sheet']
-
-    year_wise_data = []
-    for fin in financials:
-        year = fin.get('calendarYear') or fin.get('date', '')[:4]
-        bal = next((b for b in balance_sheets if b.get('calendarYear') == year or b.get('date', '')[:4] == year), {})
-
-        year_wise_data.append({
-            'year': year,
-            'employees': profile.get('fullTimeEmployees'),
-            'revenue_usd': fin.get('revenue'),
-            'profit_usd': fin.get('netIncome'),
-            'share_capital_usd': bal.get('commonStock') or bal.get('shareCapital'),
-            'market_cap_usd': profile.get('mktCap')
-        })
-
-    year_wise_data.sort(key=lambda x: int(x['year']) if x['year'] and x['year'].isdigit() else 0, reverse=True)
+    # The data is already processed, we just need to format the final response
+    profile = processed_data['profile']
+    year_wise_data = processed_data['year_wise_financials']
 
     result = {
         'search_query': company_name,
@@ -65,7 +52,7 @@ def get_company_metrics(country, company_name):
         },
         'year_wise_financials': year_wise_data,
         'data_quality': {
-            'data_source': f'{country.upper()} API'
+            'data_source': f'Cached {country.upper()} API Data'
         }
     }
     return jsonify(result)
