@@ -3,8 +3,8 @@ import logging
 import time
 from config import Config
 from services.base_api import BaseCompanyAPI
-from models import db, Company, CompanyProfile, FinancialStatement
-from utils.helpers import match_financial_data # We will use the helper now
+from models import db, Company, CompanyProfile, FinancialStatement, SearchCache
+from utils.helpers import match_financial_data
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +15,37 @@ class USCompanyAPI(BaseCompanyAPI):
         self.country_code = 'us'
 
     def search_company(self, company_name):
-        # This function does not need caching as search results should be live
-        logger.info(f"[US] Searching company '{company_name}'")
+        # 1. Check the search cache first
+        # The original code had a name collision. Corrected to use db.session.query().
+        cached_search = db.session.query(SearchCache).filter_by(query=company_name, country_code=self.country_code).first()
+
+        if cached_search and not cached_search.is_stale(Config.SEARCH_CACHE_TIMEOUT):
+            logger.info(f"[US] Search Cache HIT for query: '{company_name}'")
+            return cached_search.get_results()
+
+        logger.info(f"[US] Search Cache MISS for query: '{company_name}'. Fetching from API.")
+        
+        # 2. If not in cache or stale, fetch from API
         url = f"{self.base_url}/search"
         params = {'query': company_name, 'limit': 10, 'apikey': self.api_key}
         try:
             response = requests.get(url, params=params, timeout=10)
             logger.info(f"[US] Search API status: {response.status_code}")
-            return response.json() if response.status_code == 200 else []
+            
+            if response.status_code == 200:
+                results = response.json()
+                # 3. Save the new results to the cache
+                if not cached_search:
+                    cached_search = SearchCache(query=company_name, country_code=self.country_code)
+                    db.session.add(cached_search)
+                
+                cached_search.set_results(results)
+                cached_search.last_updated_ts = int(time.time())
+                db.session.commit()
+                
+                return results
+            else:
+                return []
         except Exception as e:
             logger.error(f"[US] Error during search: {e}")
             return []
@@ -48,7 +71,6 @@ class USCompanyAPI(BaseCompanyAPI):
         self._save_to_db(symbol, api_data)
 
         # 4. Return formatted data
-        # Re-fetch from DB to ensure consistency
         company = Company.query.filter_by(symbol=symbol, country_code=self.country_code).first()
         return self._format_data_from_db(company)
 
@@ -79,20 +101,16 @@ class USCompanyAPI(BaseCompanyAPI):
         """Saves the fetched API data into the database."""
         profile_data = data['profile']
         
-        # Use the helper to merge financial data
         year_wise_data = match_financial_data(data['financials'], data['balance_sheet'], profile_data)
 
-        # Find or create the main company entry
         company = Company.query.filter_by(symbol=symbol, country_code=self.country_code).first()
         if not company:
             company = Company(symbol=symbol, name=profile_data.get('companyName', ''), country_code=self.country_code)
             db.session.add(company)
         
-        # Delete old profile if it exists
         if company.profile:
             db.session.delete(company.profile)
 
-        # Create new profile
         new_profile = CompanyProfile(
             company=company,
             exchange=profile_data.get('exchangeShortName'),
@@ -106,10 +124,8 @@ class USCompanyAPI(BaseCompanyAPI):
         )
         db.session.add(new_profile)
 
-        # Delete old financial statements
         company.financials.delete()
 
-        # Add new financial statements
         for row in year_wise_data:
             if not row.get('year'): continue
             statement = FinancialStatement(
@@ -143,7 +159,6 @@ class USCompanyAPI(BaseCompanyAPI):
         }
 
         financials_list = []
-        # Sort financials by year descending
         sorted_financials = company.financials.order_by(FinancialStatement.year.desc()).all()
         for fin in sorted_financials:
             financials_list.append({

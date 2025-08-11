@@ -1,9 +1,39 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, Text
+from sqlalchemy.dialects.postgresql import JSONB
 import time
+import json
 
 # Create the database instance but don't attach it to an app yet
 db = SQLAlchemy()
+
+class SearchCache(db.Model):
+    """Stores cached search query results."""
+    __tablename__ = 'search_cache'
+    id = db.Column(db.Integer, primary_key=True)
+    query = db.Column(db.String(255), nullable=False, index=True)
+    country_code = db.Column(db.String(5), nullable=False, index=True)
+    
+    # Use Text for SQLite and JSONB for PostgreSQL for flexibility
+    # The 'Text' type can store a JSON string.
+    results_json = db.Column(Text, nullable=False)
+    
+    last_updated_ts = db.Column(db.Integer, nullable=False, default=lambda: int(time.time()))
+
+    __table_args__ = (UniqueConstraint('query', 'country_code', name='_query_country_uc'),)
+
+    def is_stale(self, timeout):
+        """Checks if the cache for this entry has expired."""
+        return (time.time() - self.last_updated_ts) > timeout
+
+    def set_results(self, data):
+        """Serializes python dict to json string."""
+        self.results_json = json.dumps(data)
+
+    def get_results(self):
+        """Deserializes json string to python dict."""
+        return json.loads(self.results_json)
+
 
 class Company(db.Model):
     """Stores the core, unique information for a company."""

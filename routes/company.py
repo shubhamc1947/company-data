@@ -21,8 +21,34 @@ def get_company_metrics(country, company_name):
             'suggestion': 'Try: Apple, Microsoft, Tesla, Amazon, Google, Meta, Netflix, Nike'
         }), 404
 
-    # Find the best match and its symbol
-    best_match = next((c for c in search_results if company_name.lower() in c.get('name', '').lower()), search_results[0])
+    # --- REVISED LOGIC FOR CHOOSING BEST MATCH ---
+    primary_exchanges = ['NASDAQ', 'NYSE']
+    best_match = None
+
+    # 1. Prioritize exact symbol match on primary US exchanges
+    for c in search_results:
+        if c.get('symbol', '').upper() == company_name.upper() and c.get('exchangeShortName', '') in primary_exchanges:
+            best_match = c
+            current_app.logger.info(f"Found best match by exact symbol on primary exchange: {best_match.get('symbol')}")
+            break
+
+    # 2. If not found, prioritize name match on primary exchanges
+    if not best_match:
+        for c in search_results:
+            if company_name.lower() in c.get('name', '').lower() and c.get('exchangeShortName', '') in primary_exchanges:
+                best_match = c
+                current_app.logger.info(f"Found best match by name on primary exchange: {best_match.get('symbol')}")
+                break
+
+    # 3. As a fallback, take the first result from the API list (often the most relevant)
+    if not best_match and search_results:
+        best_match = search_results[0]
+        current_app.logger.info(f"Using first search result as fallback: {best_match.get('symbol')}")
+
+
+    if not best_match:
+        return jsonify({'error': 'Could not determine a best match from search results.'}), 404
+
     symbol = best_match.get('symbol')
     if not symbol:
         return jsonify({'error': 'Stock symbol not available for the best match.'}), 400

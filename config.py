@@ -15,3 +15,5 @@ class Config:
     
     # Cache timeout in seconds (e.g., 24 hours)
     CACHE_TIMEOUT = 86400
+    # Cache timeout for search results in seconds (e.g., 1 hour)
+    SEARCH_CACHE_TIMEOUT = 3600
