@@ -1,177 +1,154 @@
-Here's a README.md tailored for your scalable country-wise company data API project:
+# Financial Data API Aggregator
 
-```markdown
-# US Company Data API (Scalable Country-Wise Design)
+A robust and scalable Flask-based API that provides standardized financial data for public companies from various countries. It acts as a middleware, fetching data from external financial APIs, processing it, and serving it through a clean, unified interface with a powerful two-layer database caching system to ensure high performance and reliability.
 
-A Flask-based REST API service that fetches key financial metrics for public companies from multiple countries.  
-Currently supports US companies using Financial Modeling Prep API, with a scalable architecture designed to add support for other countries (e.g. UK, Italy) easily.
+## Key Features
 
----
-
-## Features
-
-- Retrieve key financial data (employees, revenue, profit, share capital) for the last 5 years  
-- Search companies by name  
-- Country-specific API integration (start with US, add more countries later)  
-- Environment variable configuration via `.env`  
-- Structured logging for easier debugging  
-- Modular, scalable folder structure for maintainability  
-
-
-```
-## Folder Structure
-
-us\_company\_api/
-├── app.py                   # Flask app entrypoint
-├── config.py                # Config loader (from .env)
-├── logging\_config.py        # Setup logging
-├── requirements.txt         # Python dependencies
-├── services/
-│   ├── **init**.py
-│   ├── base\_api.py          # Abstract base class for APIs
-│   ├── us\_api.py            # US company API implementation
-│   └── other\_country\_api.py # Placeholder for other country APIs
-├── routes/
-│   ├── **init**.py
-│   ├── company.py           # /company routes
-│   ├── search.py            # /search routes
-│   └── info.py              # /, /examples, /test routes
-├── utils/
-│   ├── **init**.py
-│   └── helpers.py           # Helpers for data processing
-├── .env                     # Environment variables (not checked in)
-└── README.md                # This file
-
-````
+-   **Multi-Country Support**: Easily extensible to support financial data from any country's API provider thanks to a Service Factory pattern.
+-   **Two-Layer Caching**:
+    -   **Search Caching**: Caches search results for a short duration (default: 1 hour) to reduce redundant API calls.
+    -   **Data Caching**: Caches detailed company financial data for a longer duration (default: 24 hours) for near-instantaneous responses on subsequent requests.
+-   **Scalable Architecture**: Built with Flask Blueprints for modular routes and SQLAlchemy for a robust ORM layer.
+-   **Database Migrations**: Uses Flask-Migrate to manage database schema changes, making updates seamless.
+-   **Easy Configuration**: Manages configuration and sensitive keys using a `.env` file.
+-   **Simple Setup**: Get the API up and running with just a few commands.
 
 ---
 
-## Installation
+## Technology Stack
 
-1. Clone this repository
-
-   ```bash
-   git clone https://github.com/yourusername/us_company_api.git
-   cd us_company_api
-````
-
-2. Create and activate a Python virtual environment (recommended)
-
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # Linux/macOS
-   venv\Scripts\activate     # Windows
-   ```
-
-3. Install dependencies
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Create `.env` file (copy from `.env.example` if available) and set your API keys:
-
-   ```
-   API_BASE_URL_US=https://financialmodelingprep.com/api/v3
-   API_KEY_US=your_actual_api_key_here
-   ```
+-   **Backend**: Flask
+-   **Database ORM**: Flask-SQLAlchemy
+-   **Database Migrations**: Flask-Migrate
+-   **Database**: Supports PostgreSQL (recommended for production) and SQLite (for development).
+-   **Dependencies**: `requests` for API calls, `python-dotenv` for environment management.
 
 ---
 
-## Running the App
+## Project Structure
 
+
+.
+├── migrations/         # Database migration scripts
+├── routes/             # Flask Blueprints for API endpoints
+│   ├── company.py
+│   ├── info.py
+│   └── search.py
+├── services/           # Business logic and external API interaction
+│   ├── base_api.py
+│   ├── factory.py
+│   └── us_api.py
+├── utils/              # Helper functions
+│   └── helpers.py
+├── app.db              # SQLite database file (default)
+├── app.py              # Main Flask application entry point
+├── config.py           # Application configuration
+├── logging_config.py   # Basic logging setup
+├── models.py           # SQLAlchemy database models
+└── requirements.txt    # Python dependencies
+
+
+---
+
+## Setup and Installation
+
+Follow these steps to set up and run the project locally.
+
+**1. Prerequisites**
+- Python 3.8+
+- `pip` package manager
+
+**2. Clone the Repository**
 ```bash
-python app.py
-```
+git clone [https://github.com/shubhamc1947/company-data.git](https://github.com/shubhamc1947/company-data.git)
+cd company-data
 
-This will start the Flask app on `http://localhost:5000`.
+3. Create and Activate a Virtual Environment
 
----
+# For Windows
+python -m venv venv
+venv\Scripts\activate
 
-## API Endpoints
+# For macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
 
-### Get company metrics
+4. Install Dependencies
 
-```
-GET /company/<country_code>/<company_name>
-```
+pip install -r requirements.txt
 
-* `country_code` — ISO country code like `us`, `uk`, `it` (lowercase)
-* `company_name` — Name of the company to search and fetch data for
+5. Configure Environment Variables
+Create a file named .env in the root of the project directory and add the API key for the financial data provider.
 
-**Example:**
+.env
 
-```bash
-curl http://localhost:5000/company/us/Tesla
-```
+# Get your key from [https://financialmodelingprep.com/](https://financialmodelingprep.com/)
+API_KEY_US="your_api_key_here"
 
----
+# Optional: To use PostgreSQL, uncomment and set the following line.
+# DATABASE_URL="postgresql://user:password@host:port/database_name"
 
-### Search companies
+6. Set Up the Database
+The application defaults to using a simple app.db (SQLite) file. If you want to use PostgreSQL, make sure you have it installed and have set the DATABASE_URL in your .env file.
 
-```
-GET /search/<country_code>/<query>
-```
+Run the following commands to initialize the database and create all the necessary tables:
 
-* Search companies by name in a specified country
+# Initialize the migration environment (only run this once)
+flask db init
 
-**Example:**
+# Create the migration script based on the models
+flask db migrate -m "Initial database setup"
 
-```bash
-curl http://localhost:5000/search/us/bank
-```
+# Apply the migration to the database
+flask db upgrade
 
----
+This will create the company, company_profile, financial_statement, and search_cache tables.
 
-### General info and examples
+7. Run the Application
 
-* `GET /` — API info and documentation
-* `GET /examples` — Popular companies and usage examples
-* `GET /test` — Quick API status test
+flask run
 
----
+The API will now be running on http://127.0.0.1:5000.
 
-## Adding New Country APIs
+API Endpoints
+Info Routes
+GET /: Get general information about the API, its features, and available endpoints.
 
-To add support for a new country:
+GET /examples: Returns a list of popular company examples that are guaranteed to work.
 
-1. Create a new service class in `services/`, e.g. `uk_api.py`, implementing the base API interface.
-2. Add your API keys and base URLs in `config.py` and `.env`.
-3. Update the route handlers in `routes/company.py` and `routes/search.py` to instantiate the new API service based on `country_code`.
-4. Add examples in `routes/info.py` if needed.
+GET /test: A quick health check endpoint to verify that the external API connection is working.
 
----
+Search Route
+GET /search/<country>/<company_name>
 
-## Logging
+Searches for companies matching the company_name in the specified country.
 
-* Structured logging is configured via `logging_config.py`.
-* Logs include timestamps, module names, and log levels for easy debugging.
+country: The two-letter country code (e.g., us).
 
----
+Example: curl http://127.0.0.1:5000/search/us/Apple
 
-## Dependencies
+Company Data Route
+GET /company/<country>/<company_name>
 
-* Flask
-* Requests
-* python-dotenv (for environment variables)
+Fetches detailed financial metrics for the best-matched company. This is the primary endpoint and utilizes the full caching system.
 
-See `requirements.txt` for full list.
+Example: curl http://127.0.0.1:5000/company/us/Tesla
 
----
+Extensibility
+Adding a New Country API
+The project is designed to be easily extended. To add support for a new country (e.g., the United Kingdom):
 
-## License
+Create a New Service: Create a file services/uk_api.py that inherits from BaseCompanyAPI and implements the search_company and get_company_data methods for the UK's data provider.
 
-MIT License © Your Name
+Update the Factory: In services/factory.py, import your new UKCompanyAPI and add it to the _services dictionary with the key 'uk'.
 
----
+# services/factory.py
+from services.us_api import USCompanyAPI
+from services.uk_api import UKCompanyAPI # <-- Import new service
 
-## Contact
-
-For questions or suggestions, please open an issue or contact \[[youremail@example.com](mailto:youremail@example.com)].
-
-```
-
----
-
-If you want, I can also help generate `.env.example`, `requirements.txt`, or code snippets for your country-based service loader!
-```
+class APIServiceFactory:
+    _services = {
+        'us': USCompanyAPI(),
+        'uk': UKCompanyAPI(), # <-- Add new service
+    }
+    # ... rest of the file
